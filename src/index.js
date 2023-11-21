@@ -1,5 +1,59 @@
 const is = require('./is');
 
+function secureGetIPFromProxiedRequest(req, headerName, proxyCount=1) {
+    if (proxyCount < 1) {
+        throw new Error('Invalid count of proxies provided');
+    }
+    // Get the headers as a string
+    const forwardedIpsStr = req.headers[headerName] || '';
+    // Get the last ip which isn't a proxy (to avoid spoofing)
+    const ips = forwardedIpsStr.split(',')
+    if (ips.length < proxyCount) {
+        // Not enough proxies provided
+        // Maybe throw an error here?
+        return null;
+    }
+
+    var ip = ips.slice(-proxyCount)[0].trim();
+    
+    // Remove port number if present
+    if (ip.includes(':')) {
+        const splitted = ip.split(':');
+        // make sure we only use this if it's ipv4 (ip:port)
+        if (splitted.length === 2) {
+            ip = splitted[0];
+        }
+    }
+
+    if (is.ip(ip)) {
+        return ip;
+    }
+    return null;
+}
+
+
+function secureGetIPFromDirectRequest(req) {
+    if (is.existy(req.connection)) {
+        if (is.ip(req.connection.remoteAddress)) {
+            return req.connection.remoteAddress;
+        }
+        if (
+            is.existy(req.connection.socket) &&
+            is.ip(req.connection.socket.remoteAddress)
+        ) {
+            return req.connection.socket.remoteAddress;
+        }
+    }
+
+    if (is.existy(req.socket) && is.ip(req.socket.remoteAddress)) {
+        return req.socket.remoteAddress;
+    }
+
+    if (is.existy(req.info) && is.ip(req.info.remoteAddress)) {
+        return req.info.remoteAddress;
+    }
+    return null;
+}
 /**
  * Parse x-forwarded-for headers.
  *
